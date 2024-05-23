@@ -13,7 +13,6 @@ import requests
 import os
 
 
-
 def gen_random_str(random_length):
     """
             根据传入长度产生随机字符串
@@ -47,7 +46,7 @@ class Signature:
         # js算法加密生成 X-bogus, 执行js文件中的sign方法
         # os.getcwd() 可以获取当前python程序的工作目录, 使用相对路径是相对的当前工作目录, 并不是相对于当前文件
 
-        path = os.path.dirname(__file__) + '\\X-Bogus.js'
+        path = os.path.dirname(__file__) + os.sep + 'X-Bogus.js'
         return execjs.compile(open(path).read()).call('sign', query, user_agent)
 
     @staticmethod

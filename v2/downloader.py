@@ -1,12 +1,5 @@
-# _*_ coding : UTF-8 _*_
-# @Time : 2023/11/4 15:42
-# @Auther : Tiam
-# @File : down
-# @Project : DouyinSpider
-# @Desc: 下载器 只做下载相关
 import json
 import os
-import re
 
 import requests
 
@@ -26,7 +19,7 @@ class FileUtil:
         file_name = (file_name.replace('/', '').replace('\\', '').replace(':', '')
                      .replace('*', '').replace('?', '').replace('.', ''))
         # 去除\n \t 等空白字符
-        file_name = re.sub(r'\s', '', file_name)
+        # file_name = re.sub(r'\s', '', file_name)
         # 长度限制
         file_name = file_name[:50]
         return file_name
@@ -45,29 +38,11 @@ class FileUtil:
             os.makedirs(path)
 
 
-# 文件夹层级 /user_id/视频文件
-# 文件夹层级 /user_id/年份/视频文件
-# 文件夹层级 /user_id/分页/视频文件
+# 文件夹层级 /nickname/视频文件
+# 文件夹层级 /nickname/年份/视频文件
+# 文件夹层级 /nickname/分页/视频文件
 class Downloader:
     # 默认保存路径在当前程序的data文件夹下
-    def __init__(self, save_dir, base_dir_path='./data/'):
-        path = os.path.abspath(os.path.join(base_dir_path, save_dir))
-        # 创建文件夹
-        FileUtil.if_not_exists_create_dir(path)
-        # 下载器保存文件夹路径
-        self.save_dir_path = path
-        # self.save_json_dir_path = os.path.join(path, 'json')
-        # 作品序号
-        self.index = 0
-        # 成功下载数
-        self.ok_counts = 0
-        # 失败下载数
-        self.err_counts = 0
-        # 总下载次数
-        self.all_counts = 0
-
-    # 自定义文件夹, file_name = 文件夹名\\文件名.后缀
-    # 或者直接传入文件名
     def download(self, url, file_name):
         """
         下载文件,
@@ -82,10 +57,10 @@ class Downloader:
             size_kb = total_length / 8 / 1024
             # fixme 异步打印的日志会乱序, 有时会先打印文件大小, 再打印进度条
             print('%d、文件名： %s，文件大小: %s' % (self.all_counts, file_name,
-                                                    f'{size_kb:.2f}KB' if size_kb < 1024 else f'{size_kb / 1024:.2f}MB'))
-            path = os.path.join(self.save_dir_path, file_name)
-            FileUtil.if_not_exists_create_dir(path)
-            with open(path, 'wb') as f:
+                                                  f'{size_kb:.2f}KB' if size_kb < 1024 else f'{size_kb / 1024:.2f}MB'))
+            file_path = os.path.join(self.base_dir_path, self.nickname, file_name)
+            FileUtil.if_not_exists_create_dir(file_path)
+            with open(file_path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=1024):
                     if chunk:
                         f.write(chunk)
@@ -104,6 +79,8 @@ class Downloader:
                          f' error: {e}')
             return False
 
+    # 自定义文件夹, file_name = 文件夹名\\文件名.后缀
+    # 或者直接传入文件名
     def download_image(self, aweme_name, images):
         """
         下载图文类型作品, 可能会有多个图文
@@ -134,6 +111,24 @@ class Downloader:
                 is_success = False
         return is_success
 
+    def __init__(self, save_dir, base_dir_path='./data/'):
+        # path = os.path.abspath(os.path.join(base_dir_path, save_dir))
+        # 创建文件夹
+        # FileUtil.if_not_exists_create_dir(path)
+        # 下载器保存文件夹路径 = base_dir_path + user_id
+        # self.save_dir_path = path
+        # 改成 base_dir_path + nickname
+        self.base_dir_path = base_dir_path
+        self.nickname = ''
+        # 作品序号
+        self.index = 0
+        # 成功下载数
+        self.ok_counts = 0
+        # 失败下载数
+        self.err_counts = 0
+        # 总下载次数
+        self.all_counts = 0
+
     def download_video(self, aweme_name, video):
         """
         下载视频类型作品
@@ -149,14 +144,15 @@ class Downloader:
                 return True
         return False
 
-    def download_aweme(self, aweme):
+    def download_single_work(self, aweme):
         """
         下载作品
         :param aweme: [aweme_list][n] json数据
         :return:
         """
         # 作品名 = 作品序号-作品id-作品描述
-        aweme_name = f'{self.index}-{aweme['aweme_id']}-{FileUtil.legalize_file_name(aweme['desc'])}'
+        # aweme_name = f'{self.index}-{aweme['aweme_id']}-{FileUtil.legalize_file_name(aweme['desc'])}'
+        aweme_name = f'{self.index}-{FileUtil.legalize_file_name(aweme['preview_title'])}'
         images = aweme['images']
         return self.download_image(aweme_name, images) if images is not None \
             else self.download_video(aweme_name, aweme['video'])
@@ -167,11 +163,13 @@ class Downloader:
         :param aweme_list: [aweme_list] json数据
         :return: None
         """
+        if len(aweme_list) > 0:
+            self.nickname = aweme_list[0].get('author').get('nickname')
         # 遍历每一个视频数据
         for aweme in aweme_list:
             self.index += 1
             print(f'开始下载第{self.index}/{len(aweme_list)}个作品')
-            if self.download_aweme(aweme):
+            if self.download_single_work(aweme):
                 self.ok_counts += 1
             else:
                 self.err_counts += 1

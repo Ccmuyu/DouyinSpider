@@ -1,18 +1,9 @@
-# _*_ coding : UTF-8 _*_
-# @Time : 2023/11/13 11:30
-# @Auther : Tiam
-# @File : req_aweme_post
-# @Project : DouyinSpider
-# @Desc :
-
-
-import datetime
 import re
 import time
-from urllib.parse import urlencode
-
 import requests
 
+from urllib.parse import urlencode
+from config import cookie
 from v2.api.dhttp import (http_aweme_v1_web, Url)
 from v2.downloader import Downloader
 from v2.log import logger
@@ -22,10 +13,11 @@ from v2.signature import Signature
 class ReqUserAwemePost:
 
     @staticmethod
-    def from_url(url):
+    def from_url(url, base_dir):
         """
         从url中提取sec_user_id
         :param url:
+        :param base_dir: 保存路径地址
         :return: 成功实例化对象
         """
         sec_user_id = re.search(r'(?<=https://www.douyin.com/user/)[\w-]+', url).group()
@@ -33,20 +25,25 @@ class ReqUserAwemePost:
             logger.error(
                 r'请输入用户主页地址!, 格式应匹配正则: (?<=https://www.douyin.com/user/)[\w-]+ 可匹配到sec_user_id')
             return None
-        return ReqUserAwemePost(sec_user_id)
+        return ReqUserAwemePost(sec_user_id, base_dir, 18)
 
-    def __init__(self, sec_user_id, count=18):
+    def __init__(self, sec_user_id, base_dir, count=18):
         """
         请求用户作品相关数据
         :param sec_user_id: 用户id
         :param count: 每次请求的数量
+        :param base_dir 保存地址
         """
         super().__init__()
         self.sec_user_id = sec_user_id
-        self.downloader = Downloader(sec_user_id)
+        if base_dir == '':
+            base_dir = './data'
+        #
+        self.downloader = Downloader(sec_user_id, base_dir_path=base_dir)
         self.count = count
         self.index = 0
 
+    @DeprecationWarning
     def aweme_v1_web_aweme_post(self, max_cursor=0, need_time_list=1):
         """
         通过接口https://www.douyin.com/aweme/v1/web/aweme/post/请求用户作品相关数据
@@ -93,15 +90,6 @@ class ReqUserAwemePost:
             time.sleep(2)
             return self.aweme_v1_web_aweme_post(max_cursor, need_time_list)
         return http_aweme_v1_web.res(response, self.index)
-        # logger.info('本次请求状态码: {}, 返回数据长度: {}', response.status_code, len(response.text))
-        # if response.status_code == 200 and len(response.text) > 0:
-        #     json_data = response.json()
-        #     logger.info('本次请求到的视频数量: {}', len(json_data['aweme_list']))
-        #     # 保存json文件做备份
-        #     date = datetime.datetime.fromtimestamp(int(max_cursor) / 1000).strftime('%Y-%m-%d') if max_cursor > 0 \
-        #         else datetime.date.today()
-        #     self.downloader.save_json_file(json_data, str(date))
-        #     return json_data
 
     def aweme_v1_web_aweme_post_1(self, max_cursor=0, need_time_list=1):
         """
@@ -110,9 +98,7 @@ class ReqUserAwemePost:
         :param need_time_list:
         :return:
         """
-        cookies = {
-            'ttwid': '1%7C7bNwGzlfoxFk0M5A0Ga6bI7jLPpBWLVt2SlW9DnTa9g%7C1699288129%7Ce14c38d31876df442429e626286c276072f7a7a7b5ebe8abfe866fba1c3e950e',
-        }
+        cookies = cookie.cookies
         headers = {
             'referer': 'https://www.douyin.com/user/' + self.sec_user_id,
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
@@ -168,7 +154,7 @@ class ReqUserAwemePost:
             response = requests.get(url, headers=headers, cookies=cookies)
             # response = requests.get(new_url, headers=headers)
         except Exception as e:
-            logger.error('请求异常: {}', e)
+            logger.error('请求异常:  {}', e)
             # 判断异常类型
             if isinstance(e, requests.exceptions.ConnectionError):
                 logger.error('网络连接错误异常，如DNS查询失败、拒绝连接等')
@@ -179,7 +165,7 @@ class ReqUserAwemePost:
             elif isinstance(e, requests.exceptions.TooManyRedirects):
                 logger.error('超过最大重定向次数，产生重定向异常')
             else:
-                logger.error('其他异常')
+                logger.error('其他异常：{}', e)
             return None
         logger.info('{}、本次请求状态码: {}, 返回数据长度: {}', self.index, response.status_code, len(response.text))
         if response.status_code == 429:
